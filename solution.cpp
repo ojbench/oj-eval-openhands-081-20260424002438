@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <cstring>
 
+#pragma GCC optimize("O3,unroll-loops")
+#pragma GCC target("avx2")
+
 using namespace std;
 
 const int MAXN = 3005;
