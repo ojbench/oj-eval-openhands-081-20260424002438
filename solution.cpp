@@ -15,9 +15,9 @@ struct Edge {
 
 int n, m;
 vector<Edge> adj[MAXN];
-int parent[MAXN];
-int parent_edge[MAXN];
-bool visited[MAXN];
+int level[MAXN];
+int iter[MAXN];
+vector<pair<int, int>> modified_edges;
 
 void add_edge(int from, int to, int cap) {
     adj[from].push_back({to, cap, 0, (int)adj[to].size()});
@@ -25,11 +25,10 @@ void add_edge(int from, int to, int cap) {
 }
 
 bool bfs(int s, int t) {
-    fill(visited, visited + n + 1, false);
-    fill(parent, parent + n + 1, -1);
+    fill(level, level + n + 1, -1);
     queue<int> q;
+    level[s] = 0;
     q.push(s);
-    visited[s] = true;
     
     while (!q.empty()) {
         int u = q.front();
@@ -37,48 +36,52 @@ bool bfs(int s, int t) {
         
         for (int i = 0; i < adj[u].size(); i++) {
             Edge& e = adj[u][i];
-            if (!visited[e.to] && e.cap > e.flow) {
-                visited[e.to] = true;
-                parent[e.to] = u;
-                parent_edge[e.to] = i;
-                if (e.to == t) return true;
+            if (level[e.to] < 0 && e.cap > e.flow) {
+                level[e.to] = level[u] + 1;
                 q.push(e.to);
             }
         }
     }
     
-    return false;
+    return level[t] >= 0;
+}
+
+int dfs(int u, int t, int pushed) {
+    if (u == t || pushed == 0) return pushed;
+    
+    for (int& i = iter[u]; i < adj[u].size(); i++) {
+        Edge& e = adj[u][i];
+        
+        if (level[u] + 1 != level[e.to] || e.cap <= e.flow)
+            continue;
+        
+        int tr = dfs(e.to, t, min(pushed, e.cap - e.flow));
+        if (tr > 0) {
+            e.flow += tr;
+            adj[e.to][e.rev].flow -= tr;
+            modified_edges.push_back({u, i});
+            modified_edges.push_back({e.to, e.rev});
+            return tr;
+        }
+    }
+    
+    return 0;
 }
 
 int max_flow(int s, int t) {
-    // Reset all flows
-    for (int i = 1; i <= n; i++) {
-        for (auto& e : adj[i]) {
-            e.flow = 0;
-        }
+    // Reset only modified flows
+    for (auto& p : modified_edges) {
+        adj[p.first][p.second].flow = 0;
     }
+    modified_edges.clear();
     
     int total_flow = 0;
     
     while (bfs(s, t)) {
-        int path_flow = INF;
-        
-        // Find minimum capacity along the path
-        for (int v = t; v != s; v = parent[v]) {
-            int u = parent[v];
-            int edge_idx = parent_edge[v];
-            path_flow = min(path_flow, adj[u][edge_idx].cap - adj[u][edge_idx].flow);
+        fill(iter, iter + n + 1, 0);
+        while (int pushed = dfs(s, t, INF)) {
+            total_flow += pushed;
         }
-        
-        // Update flow along the path
-        for (int v = t; v != s; v = parent[v]) {
-            int u = parent[v];
-            int edge_idx = parent_edge[v];
-            adj[u][edge_idx].flow += path_flow;
-            adj[v][adj[u][edge_idx].rev].flow -= path_flow;
-        }
-        
-        total_flow += path_flow;
     }
     
     return total_flow;
