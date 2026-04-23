@@ -1,90 +1,70 @@
 #include <iostream>
 #include <vector>
 #include <queue>
-#include <cstring>
 #include <algorithm>
+#include <cstring>
 
 using namespace std;
 
 const int MAXN = 3005;
-const int INF = 1e9;
-
-struct Edge {
-    int to, cap, flow, rev;
-};
 
 int n, m;
-vector<Edge> adj[MAXN];
-int level[MAXN];
-int iter[MAXN];
-vector<pair<int, int>> modified_edges;
+vector<int> adj[MAXN];
+int cap[MAXN][MAXN];
+int flow[MAXN][MAXN];
+int parent[MAXN];
+vector<pair<int,int>> edges;
 
-void add_edge(int from, int to, int cap) {
-    adj[from].push_back({to, cap, 0, (int)adj[to].size()});
-    adj[to].push_back({from, cap, 0, (int)adj[from].size() - 1});
-}
-
-bool bfs(int s, int t) {
-    fill(level, level + n + 1, -1);
+inline bool bfs(int s, int t) {
+    fill(parent + 1, parent + n + 1, -1);
+    parent[s] = s;
     queue<int> q;
-    level[s] = 0;
     q.push(s);
     
     while (!q.empty()) {
         int u = q.front();
         q.pop();
         
-        for (int i = 0; i < adj[u].size(); i++) {
-            Edge& e = adj[u][i];
-            if (level[e.to] < 0 && e.cap > e.flow) {
-                level[e.to] = level[u] + 1;
-                q.push(e.to);
+        if (u == t) return true;
+        
+        for (int v : adj[u]) {
+            if (parent[v] == -1 && cap[u][v] > flow[u][v]) {
+                parent[v] = u;
+                q.push(v);
             }
         }
     }
     
-    return level[t] >= 0;
-}
-
-int dfs(int u, int t, int pushed) {
-    if (u == t || pushed == 0) return pushed;
-    
-    for (int& i = iter[u]; i < adj[u].size(); i++) {
-        Edge& e = adj[u][i];
-        
-        if (level[u] + 1 != level[e.to] || e.cap <= e.flow)
-            continue;
-        
-        int tr = dfs(e.to, t, min(pushed, e.cap - e.flow));
-        if (tr > 0) {
-            e.flow += tr;
-            adj[e.to][e.rev].flow -= tr;
-            modified_edges.push_back({u, i});
-            modified_edges.push_back({e.to, e.rev});
-            return tr;
-        }
-    }
-    
-    return 0;
+    return false;
 }
 
 int max_flow(int s, int t) {
-    // Reset only modified flows
-    for (auto& p : modified_edges) {
-        adj[p.first][p.second].flow = 0;
+    // Reset flows only for existing edges
+    for (auto& e : edges) {
+        flow[e.first][e.second] = flow[e.second][e.first] = 0;
     }
-    modified_edges.clear();
     
-    int total_flow = 0;
+    int total = 0;
     
     while (bfs(s, t)) {
-        fill(iter, iter + n + 1, 0);
-        while (int pushed = dfs(s, t, INF)) {
-            total_flow += pushed;
+        // Find min capacity
+        int path_flow = 1000000;
+        for (int v = t; v != s; v = parent[v]) {
+            int u = parent[v];
+            path_flow = min(path_flow, cap[u][v] - flow[u][v]);
         }
+        
+        // Update flow
+        for (int v = t; v != s; v = parent[v]) {
+            int u = parent[v];
+            flow[u][v] += path_flow;
+            flow[v][u] -= path_flow;
+        }
+        
+        total += path_flow;
     }
     
-    return total_flow;
+    return total;
 }
 
 int main() {
@@ -93,10 +73,16 @@ int main() {
     
     cin >> n >> m;
     
+    memset(cap, 0, sizeof(cap));
+    memset(flow, 0, sizeof(flow));
+    
     for (int i = 0; i < m; i++) {
         int a, b;
         cin >> a >> b;
-        add_edge(a, b, 1);
+        adj[a].push_back(b);
+        adj[b].push_back(a);
+        cap[a][b] = cap[b][a] = 1;
+        edges.push_back({a, b});
     }
     
     long long total = 0;
